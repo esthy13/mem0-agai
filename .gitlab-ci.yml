@@ -1,0 +1,54 @@
+# .gitlab-ci.yml example
+variables:
+  UV_VERSION: "0.11.7" # Use current uv version
+  PYTHON_VERSION: "3.13"
+  BASE_LAYER: "trixie-slim"
+  # GitLab CI creates separate mountpoints, use copy mode
+  UV_LINK_MODE: copy
+  # Cache directory for uv
+  UV_CACHE_DIR: .uv-cache
+  LLM_API_KEY: "12345"
+  LLM_BASE_URL: "https://api.example.com"
+
+image: ghcr.io/astral-sh/uv:$UV_VERSION-python$PYTHON_VERSION-$BASE_LAYER
+
+# Cache uv dependencies
+cache:
+  key:
+    files:
+      - uv.lock
+  paths:
+    - $UV_CACHE_DIR
+
+stages:
+  - lint
+  - test
+  - pages
+
+before_script:
+  # Sync project environment
+  - uv venv --python $PYTHON_VERSION
+  - source .venv/bin/activate
+  - uv pip install -e '.[dev]'
+
+lint:
+  stage: lint
+  script:
+    - uv run ruff check .
+
+test:
+  stage: test
+  script:
+    - uv run pytest agentic_ai_exercise/tests
+#  after_script:
+#    # Optional: cleanup cache
+#    - uv cache prune --ci
+
+pages:
+  script:
+    - pdoc --output-dir public --math --docformat google "agentic_ai_exercise"
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

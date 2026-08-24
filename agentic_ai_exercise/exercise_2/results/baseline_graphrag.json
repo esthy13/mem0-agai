@@ -1,0 +1,19 @@
+{
+  "mode": "baseline",
+  "subset": "medical",
+  "samples_evaluated": 100,
+  "overall": {
+    "exact_match": 0.09,
+    "f1": 0.6814,
+    "rouge_l": 0.6665,
+    "count": 100
+  },
+  "by_question_type": {
+    "Fact Retrieval": {
+      "exact_match": 0.09,
+      "f1": 0.6814,
+      "rouge_l": 0.6665,
+      "count": 100
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "mode": "baseline",
+  "samples_evaluated": 100,
+  "exact_match": 0.61,
+  "f1_score": 0.7126
+}

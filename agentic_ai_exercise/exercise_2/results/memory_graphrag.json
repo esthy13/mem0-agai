@@ -1,0 +1,19 @@
+{
+  "mode": "memory_agent",
+  "subset": "medical",
+  "samples_evaluated": 100,
+  "overall": {
+    "exact_match": 0.0,
+    "f1": 0.2213,
+    "rouge_l": 0.1872,
+    "count": 100
+  },
+  "by_question_type": {
+    "Fact Retrieval": {
+      "exact_match": 0.0,
+      "f1": 0.2213,
+      "rouge_l": 0.1872,
+      "count": 100
+    }
+  }
+}

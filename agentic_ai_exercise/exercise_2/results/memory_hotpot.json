@@ -1,0 +1,6 @@
+{
+  "mode": "memory_agent",
+  "samples_evaluated": 100,
+  "exact_match": 0.15,
+  "f1_score": 0.2646
+}

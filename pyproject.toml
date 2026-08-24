@@ -1,0 +1,18 @@
+[project]
+name = "agentic_ai_exercise"
+version = "0.1.0"
+description = "Repo for the Agentic AI Seminar SoSe 2026 Bielefeld University"
+requires-python = ">=3.13"
+dependencies = [
+    "agentscope[full]",
+]
+
+[tool.setuptools.packages.find]
+include = ["agentic_ai_exercise*"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "pdoc",
+]
