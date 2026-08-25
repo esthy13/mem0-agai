@@ -1,4 +1,5 @@
 # Mem0 Agent Memory Benchmark
+Exercise 2 for the Agentic AI course at the University of Bielefeld
 
 An experimental evaluation of **long-term memory for LLM agents**, built with AgentScope, Mem0, Qdrant, and Qwen models. The project compares retrieval-backed memory against direct context injection on multi-hop and knowledge-intensive question answering.
 
