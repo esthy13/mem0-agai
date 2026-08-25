@@ -7,7 +7,8 @@ from agentscope.message import Msg
 from agentscope.model import OpenAIChatModel
 from dotenv import load_dotenv
 from mem0.vector_stores.configs import VectorStoreConfig
-from agentic_ai_exercise import ENV_PATH, QWEN3_VL_4B_Instruct, QWEN3_06B_Embed
+
+from project_config import ENV_PATH, QWEN3_06B_Embed, QWEN3_VL_4B_Instruct
 
 MODEL_CHAT_BOT = QWEN3_VL_4B_Instruct
 MODEL_MEMORY = QWEN3_VL_4B_Instruct

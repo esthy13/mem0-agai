@@ -39,14 +39,14 @@ lint:
 test:
   stage: test
   script:
-    - uv run pytest agentic_ai_exercise/tests
+    - uv run pytest tests
 #  after_script:
 #    # Optional: cleanup cache
 #    - uv cache prune --ci
 
 pages:
   script:
-    - pdoc --output-dir public --math --docformat google "agentic_ai_exercise"
+    - pdoc --output-dir public --math --docformat google "exercise_2"
   artifacts:
     paths:
       - public

@@ -1,14 +1,17 @@
 [project]
-name = "agentic_ai_exercise"
+name = "mem0-agai"
 version = "0.1.0"
-description = "Repo for the Agentic AI Seminar SoSe 2026 Bielefeld University"
+description = "Benchmarking long-term memory retrieval for LLM agents with Mem0 and AgentScope"
 requires-python = ">=3.13"
 dependencies = [
     "agentscope[full]",
 ]
 
 [tool.setuptools.packages.find]
-include = ["agentic_ai_exercise*"]
+include = ["exercise_2*"]
+
+[tool.setuptools]
+py-modules = ["project_config"]
 
 [project.optional-dependencies]
 dev = [
@@ -16,3 +19,11 @@ dev = [
     "ruff",
     "pdoc",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff.lint]
+# Retrieval failures are deliberately non-fatal during long benchmark runs,
+# and result files are small synchronous writes at the end of async workflows.
+ignore = ["ASYNC230", "BLE001", "S110"]

@@ -1,121 +1,175 @@
-# Exercise Repository
+# Mem0 Agent Memory Benchmark
 
-Welcome to the course exercise repository! This README will guide you through setting up your development environment and submitting your group work.
+An experimental evaluation of **long-term memory for LLM agents**, built with AgentScope, Mem0, Qdrant, and Qwen models. The project compares retrieval-backed memory against direct context injection on multi-hop and knowledge-intensive question answering.
 
-## Getting Started
+The key finding is practical rather than promotional: memory improved slightly on HotpotQA, while direct context injection remained substantially stronger on medical GraphRAG-Bench questions. This repository documents both outcomes and the engineering trade-offs behind them.
 
-### 1. Clone the Repository
+## Highlights
 
-Clone this repository to your local machine:
+- Built an asynchronous retrieve → generate → record agent pipeline with AgentScope and Mem0.
+- Configured Qdrant-backed semantic retrieval with 1,024-dimensional Qwen embeddings.
+- Designed controlled baseline-versus-memory evaluations on HotpotQA and GraphRAG-Bench.
+- Implemented Exact Match, token F1, and ROUGE-L scoring with per-question-type aggregation.
+- Added resilience for embedding/retrieval failures and context-window constraints.
+
+## Results
+
+| Benchmark | Mode | Exact Match | F1 | ROUGE-L |
+|---|---|---:|---:|---:|
+| HotpotQA, 100 samples | Direct-context baseline | 0.61 | 0.71 | — |
+| HotpotQA, 100 samples | Memory agent | **0.63** | **0.73** | — |
+| GraphRAG-Bench medical, 100 samples | Direct-context baseline | **0.09** | **0.68** | **0.67** |
+| GraphRAG-Bench medical, 100 samples | Memory agent | 0.00 | 0.22 | 0.19 |
+
+The HotpotQA run suggests that accumulated memory can help when related facts recur. On GraphRAG-Bench, Mem0's fact extraction lost relational detail that the baseline retained by seeing the source evidence directly. The result highlights when memory compression is useful—and when retrieval should preserve richer source context.
+
+## Architecture
+
+```text
+question ──> semantic memory retrieval ──> Qwen answer generation ──> response
+                         ^                                      |
+                         └────── record question + answer ──────┘
+```
+
+The baseline bypasses retrieval and places the complete evidence directly in the model prompt. Both modes use the same chat model so the comparison isolates the context-delivery strategy.
+
+### How the memory agent works
+
+[`MemoryAgent`](exercise_2/agent/memory_agent.py) wraps an AgentScope `AgentBase` with `Mem0LongTermMemory`. Each request follows three steps:
+
+1. **Retrieve** memories related to the incoming question from Qdrant.
+2. **Generate** an answer from the optional system prompt, retrieved memories, and question.
+3. **Record** the question-and-answer exchange for later retrieval.
+
+The evaluation uses one shared agent across samples so knowledge genuinely accumulates. Context passages are recorded individually to keep memory extraction within the model's context window. Retrieval and recording failures are non-fatal, allowing long benchmark runs to continue through transient API errors.
+
+The exported `build_chat_model()` factory is also used by the baseline, ensuring both modes use the same generation model.
+
+## Tech stack
+
+- Python 3.13+
+- AgentScope and Mem0
+- Qdrant vector storage
+- Qwen3-VL-4B-Instruct-FP8
+- Qwen3-Embedding-0.6B
+- Hugging Face Datasets
+- pytest, Ruff, and GitLab CI
+
+## Repository layout
+
+```text
+.
+├── exercise_2/
+│   ├── agent/memory_agent.py    # memory agent and model factories
+│   ├── eval/                    # benchmark runners and metrics
+│   └── results/                 # committed benchmark summaries
+├── tests/
+├── example.py                   # minimal chat-agent example
+├── embedding_example.py         # embedding API example
+└── project_config.py            # shared paths and model identifiers
+```
+
+## Setup
+
+Install [uv](https://docs.astral.sh/uv/), then create the environment and install the project:
 
 ```bash
-git clone <repository-url>
-cd <repository-name>
+uv venv --python 3.13
+source .venv/bin/activate
+uv pip install -e '.[dev]'
+uv pip install -r exercise_2/requirements.txt
 ```
 
-### 2. Set Up Your Environment with `uv`
+Create `.env` in the repository root:
 
-This project uses [uv](https://github.com/astral-sh/uv) for Python package management.
+```dotenv
+LLM_API_KEY=<your-api-key>
+LLM_BASE_URL=<openai-compatible-api-base-url>
+```
 
-Install the project in editable mode:
+Do not commit credentials.
+
+### Model and embedding configuration
+
+The chat and memory-extraction model is `Qwen/Qwen3-VL-4B-Instruct-FP8`. Semantic retrieval uses `Qwen/Qwen3-Embedding-0.6B` with an in-memory Qdrant vector store.
+
+Important implementation details:
+
+- Set `embedding_model_dims` to `1024`; Mem0's OpenAI-oriented default is `1536`.
+- The remote embedding endpoint does not accept a `dimensions` parameter, so the client uses `dimensions=None`.
+- Alternative embedding clients must request `encoding_format="float"`.
+- HotpotQA context is capped at 24,000 characters to stay within the chat model's context window.
+- If a local Qdrant collection was created with a different embedding size, remove that stale collection before rerunning the evaluation.
+
+## Run the evaluations
+
+Run commands from the repository root:
 
 ```bash
-uv pip install -e .
+# HotpotQA
+python -m exercise_2.eval.hotpotqa --output exercise_2/results/baseline_hotpot.json --limit 100 --baseline
+python -m exercise_2.eval.hotpotqa --output exercise_2/results/memory_hotpot.json --limit 100
+
+# GraphRAG-Bench, medical subset
+python -m exercise_2.eval.graphrag_bench --output exercise_2/results/baseline_graphrag.json --subset medical --limit 100 --baseline
+python -m exercise_2.eval.graphrag_bench --output exercise_2/results/memory_graphrag.json --subset medical --limit 100
 ```
 
-This allows you to make changes to the code that are immediately reflected without reinstalling.
+Use a small `--limit` first because evaluation calls a remote model endpoint. The GraphRAG-Bench runner also supports `--subset novel`.
 
-### 3. Update Dependencies
+## Evaluation methodology
 
-When adding new dependencies for your submission, update the `pyproject.toml` file:
+| Mode | Context delivery | Memory behavior |
+|---|---|---|
+| Direct-context baseline | Source evidence is placed directly in the system prompt | No persistent memory |
+| Memory agent | Evidence is recorded, extracted, and retrieved by embedding similarity | Shared memory accumulates across samples |
 
-```toml
-[project]
-dependencies = [
-    "your-package>=1.0.0",
-    # Add your required packages here
-]
-```
+### HotpotQA
 
-After updating `pyproject.toml`, sync your environment:
+HotpotQA tests multi-hop question answering over Wikipedia passages in the distractor setting.
+
+- The baseline receives all passages that fit within the context cap.
+- The memory agent records each passage separately and answers using retrieved facts.
+- Qwen `<think>...</think>` blocks are removed before scoring.
+- Answers are constrained to a short phrase or single word.
+- Metrics: Exact Match and token-level F1.
+
+### GraphRAG-Bench
+
+GraphRAG-Bench evaluates fact retrieval, complex reasoning, contextual summarization, and creative generation over medical and novel corpora.
+
+- The baseline receives the gold evidence directly.
+- The memory agent records the evidence and must retrieve it without direct prompt injection.
+- Scores are aggregated overall and by question type.
+- Metrics: Exact Match, token-level F1, and ROUGE-L.
+
+ROUGE-L is the most informative metric for longer summarization and generation answers, where exact string matching is overly strict.
+
+### Metric definitions
+
+All predictions and references are lowercased and normalized for punctuation and whitespace before scoring.
+
+| Metric | Definition |
+|---|---|
+| Exact Match | `1` when normalized prediction and reference are identical; otherwise `0` |
+| Token F1 | Harmonic mean of precision and recall over shared token counts |
+| ROUGE-L | F1 derived from the longest common token subsequence |
+
+## Interpretation and limitations
+
+The small HotpotQA improvement shows that persistent memory can help when relevant facts can be compressed and recovered reliably. The GraphRAG-Bench result exposes the opposite case: Mem0 may rewrite evidence into generalized facts and lose precise relationships needed for medical questions.
+
+This experiment therefore does not claim that memory universally improves retrieval-augmented generation. It demonstrates that the quality of memory extraction and the fidelity of stored evidence are as important as semantic retrieval itself.
+
+## Quality checks
 
 ```bash
-uv pip install -e .
+uv run pytest
+uv run ruff check .
 ```
 
-### 4. Create `.env` File
-Create a `.env` file in the root directory of the project with the following content:
-```
-LLM_API_KEY=sk-1234
-LLM_BASE_URL=http://localhost:4000
-```
-Replace `sk-1234` with your actual API key and `http://localhost:4000` with base URL of the API, described in moodle.
-*Do not* commit this file to the repository.
+## Repository metadata
 
-## Workflow
+**About:** Benchmarking long-term memory retrieval for LLM agents with Mem0, AgentScope, Qdrant, and Qwen.
 
-### Working with GitLab Issues and Merge Requests
-1. Exercises are handled via GitLab Issues and Merge Requests (MRs).
-
-2. **Merge Request:** Create a Merge Request (MR). Assign yourself to the MR.       
-3. **Create a Branch:** Create a new branch for your work from the Merge Request page from the `exercise_1` branch.
-4. **Naming Convention:** Both your **branch name** and the **folder** you create within `exercise_1/` MUST follow this pattern:
-    `{exercise_short}_group_{character}`
-    *   `{exercise_short}` is provided in the GitLab issue description.
-    *   `group_{character}` represents your assigned group (e.g., `group_a`).
-    *   Example: `react_group_a`
-
-## Code Quality Standards
-
-We expect high-quality, professional code submissions. Please adhere to the following:
-
-### Code Style
-- Follow [PEP 8](https://pep8.org/) Python style guidelines
-- Use meaningful variable and function names
-- Keep functions focused and concise (single responsibility principle)
-- Maintain consistent indentation and formatting
-
-### Documentation
-- **All functions, classes, and modules must be documented** using [Google-style docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)
-- Include clear descriptions, parameter types, return types, and examples where appropriate
-
-Example:
-```python
-def calculate_average(numbers: list[float]) -> float:
-    """Calculate the arithmetic mean of a list of numbers.
-
-    Args:
-        numbers: A list of numerical values.
-
-    Returns:
-        The average of the input numbers.
-
-    Raises:
-        ValueError: If the list is empty.
-
-    Examples:
-        >>> calculate_average([1, 2, 3, 4, 5])
-        3.0
-    """
-    if not numbers:
-        raise ValueError("Cannot calculate average of empty list")
-    return sum(numbers) / len(numbers)
-```
-
-### Testing
-- Write unit tests for your code
-- Ensure all tests pass before submitting your MR
-- Aim for meaningful test coverage
-
-## Documentation Website
-
-This repository automatically generates documentation from your code docstrings:
-
-- **Documentation Tool**: [pdoc](https://pdoc.dev/)
-- **Trigger**: GitLab CI pipeline on the `main` branch
-- **Format**: Google-style docstrings (as shown above)
-
-Your properly formatted docstrings will be automatically compiled into a browsable documentation website when code is merged to `main`. This makes it essential to document your code thoroughly!
-
-## Need Help?
-Via Moodle or florian.schroeder@techfak.de
+**Topics:** `llm-agents`, `agent-memory`, `mem0`, `agentscope`, `qdrant`, `retrieval-augmented-generation`, `rag`, `qwen`, `hotpotqa`, `graphrag`, `benchmarking`, `python`

@@ -1,5 +1,4 @@
 a2a-sdk==0.3.26
--e file:///Users/conocirone/Desktop/agenticAI/agentic-ai-exercise
 agentscope==1.0.19.post1
 aiofile==3.9.0
 aiofiles==25.1.0

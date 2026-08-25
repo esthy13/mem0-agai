@@ -4,10 +4,11 @@ import json
 import re
 from collections import defaultdict
 
-from datasets import load_dataset
 from agentscope.message import Msg
-from agent.memory_agent import MemoryAgent, build_chat_model
-from eval.metrics import f1_score, exact_match, rouge_l
+from datasets import load_dataset
+
+from exercise_2.agent.memory_agent import MemoryAgent, build_chat_model
+from exercise_2.eval.metrics import exact_match, f1_score, rouge_l
 
 DATASET_ID = "GraphRAG-Bench/GraphRAG-Bench"
 MAX_CONTEXT_CHARS = 24_000

@@ -2,10 +2,11 @@ import argparse
 import asyncio
 import json
 
-from datasets import load_dataset
 from agentscope.message import Msg
-from agent.memory_agent import MemoryAgent, build_chat_model
-from eval.metrics import f1_score, exact_match
+from datasets import load_dataset
+
+from exercise_2.agent.memory_agent import MemoryAgent, build_chat_model
+from exercise_2.eval.metrics import exact_match, f1_score
 
 DATASET_TO_EVALUATE = "hotpot_qa"
 MAX_CONTEXT_CHARS = 24_000

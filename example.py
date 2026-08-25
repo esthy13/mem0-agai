@@ -1,31 +1,20 @@
 import asyncio
 import os
 
-from dotenv import load_dotenv
-
 from agentscope.agent import AgentBase
-from agentscope.embedding import OpenAITextEmbedding
 from agentscope.formatter import OpenAIChatFormatter
 from agentscope.memory import InMemoryMemory
 from agentscope.message import Msg
 from agentscope.model import OpenAIChatModel
+from dotenv import load_dotenv
 
-from agentic_ai_exercise import ENV_PATH, QWEN3_06B_Embed, QWEN3_VL_4B_Instruct
+from project_config import ENV_PATH, QWEN3_VL_4B_Instruct
 
 # Load API key and base URL from .env
 load_dotenv(ENV_PATH)
 
 api_key  = os.environ["LLM_API_KEY"]
 api_base = os.environ["LLM_BASE_URL"]
-
-
-# --- Embedding model (standalone, used outside the agent) ---
-embedding_model = OpenAITextEmbedding(
-    model_name=QWEN3_06B_Embed,
-    api_key=api_key,
-    base_url=api_base,           # note: base_url, not client_args
-    dimensions=None,
-)
 
 
 class MyAgent(AgentBase):
@@ -40,14 +29,18 @@ class MyAgent(AgentBase):
             model_name=QWEN3_VL_4B_Instruct,
             api_key=api_key,
             client_args={"base_url": api_base},
-            stream=False,
+            stream=False
         )
         self.formatter = OpenAIChatFormatter()
         self.memory = InMemoryMemory()
 
     async def reply(self, msg: Msg | list[Msg] | None) -> Msg:
+        """Core agent logic: store input, call model, store and return response."""
+        await self.print(msg)
+        # 1. Store the incoming user message
         await self.memory.add(msg)
 
+        # 2. Build the prompt: system prompt + full conversation history
         prompt = await self.formatter.format(
             [
                 Msg("system", self.sys_prompt, "system"),
@@ -55,8 +48,10 @@ class MyAgent(AgentBase):
             ]
         )
 
+        # 3. Call the model
         response = await self.model(prompt)
 
+        # 4. Wrap the response in a Msg and store it
         reply_msg = Msg(
             name=self.name,
             content=response.content,
@@ -64,24 +59,21 @@ class MyAgent(AgentBase):
         )
         await self.memory.add(reply_msg)
         await self.print(reply_msg)
+
         return reply_msg
 
 
 async def main() -> None:
-    # --- Embedding example ---
-    texts = [
-        "AgentScope makes building agents easy.",
-        "Paris is the capital of France.",
-    ]
-    embed_response = await embedding_model(texts)
-    print(f"Embedded {len(embed_response.embeddings)} texts")
-    print(f"Embedding dim: {len(embed_response.embeddings[0])}")
-    print(f"Usage: {embed_response.usage}\n")
-
-    # --- Chat agent example ---
     agent = MyAgent()
-    msg = Msg(name="user", content="Hello! What can you help me with?", role="user")
-    await agent.reply(msg)
+
+    # Multi-turn conversation
+    turns = [
+        "Hello! What can you help me with?",
+        "Can you summarise that in one sentence?",
+    ]
+    for text in turns:
+        user_msg = Msg(name="user", content=text, role="user")
+        await agent.reply(user_msg)
 
 
 if __name__ == "__main__":
